@@ -207,8 +207,11 @@ async def fetch_air():
         "serviceKey": DATA_GO_KR_KEY, "returnType": "json", "numOfRows": 100,
         "pageNo": 1, "sidoName": SIDO_NAME, "ver": "1.0",
     }
-    async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.get(AIR_URL, params=params)
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(AIR_URL, params=params)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"공공데이터 서버 연결 실패: {type(e).__name__}: {e}")
     try:
         body = r.json()["response"]
         if body["header"]["resultCode"] != "00":
