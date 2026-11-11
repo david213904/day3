@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>day3 frontend</title>
+  <style>body{font-family:sans-serif;max-width:600px;margin:40px auto}pre{background:#f4f4f4;padding:12px}</style>
+</head>
+<body>
+  <h1>day3 연결 테스트</h1>
+  <p>API 주소: <code id="base"></code></p>
+  <button id="btn">/health 호출</button>
+  <pre id="out">결과 대기중…</pre>
+  <script>
+    // 로컬은 127.0.0.1:8000, 배포 시 이 값만 Railway 주소로 바꾼다
+    const API_BASE = "http://127.0.0.1:8000";
+    document.getElementById("base").textContent = API_BASE;
+    document.getElementById("btn").onclick = async () => {
+      const out = document.getElementById("out");
+      try {
+        const r = await fetch(API_BASE + "/health");
+        out.textContent = JSON.stringify(await r.json(), null, 2);
+      } catch (e) { out.textContent = "오류: " + e; }
+    };
+  </script>
+</body>
+</html>
