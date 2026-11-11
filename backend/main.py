@@ -170,3 +170,115 @@ def clear_cart(cart_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Supabase 오류: {e}")
     return _cart_view(cart_id)
+
+
+# ───────────────────── 미세먼지 (에어코리아 공공데이터) ─────────────────────
+# 서비스키는 서버(.env / Railway Variables)에만 두고, 브라우저에는 노출하지 않는다.
+import asyncio
+import time
+
+import httpx
+from fastapi import Header
+
+DATA_GO_KR_KEY = os.getenv("DATA_GO_KR_KEY", "").strip()
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
+SIDO_NAME = os.getenv("SIDO_NAME", "제주").strip()
+COLLECT_MINUTES = int(os.getenv("COLLECT_MINUTES", "60") or 60)
+AIR_URL = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
+_air_cache = {"at": 0.0, "rows": []}
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _grade(v):
+    return int(v) if v and str(v).isdigit() else None
+
+
+async def fetch_air():
+    """공공데이터 API에서 시도별 실시간 측정값을 가져와 필요한 항목만 정리한다."""
+    if not DATA_GO_KR_KEY:
+        raise HTTPException(status_code=500, detail="DATA_GO_KR_KEY 가 설정되지 않았습니다")
+    params = {
+        "serviceKey": DATA_GO_KR_KEY, "returnType": "json", "numOfRows": 100,
+        "pageNo": 1, "sidoName": SIDO_NAME, "ver": "1.0",
+    }
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(AIR_URL, params=params)
+    try:
+        body = r.json()["response"]
+        if body["header"]["resultCode"] != "00":
+            raise ValueError(body["header"]["resultMsg"])
+        items = body["body"]["items"]
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"공공데이터 응답 오류: {e}")
+    return [{
+        "station_name": it["stationName"],
+        "sido_name": it["sidoName"],
+        "data_time": it["dataTime"],
+        "pm10": _num(it.get("pm10Value")), "pm10_grade": _grade(it.get("pm10Grade")),
+        "pm25": _num(it.get("pm25Value")), "pm25_grade": _grade(it.get("pm25Grade")),
+        "o3": _num(it.get("o3Value")), "no2": _num(it.get("no2Value")),
+        "co": _num(it.get("coValue")), "so2": _num(it.get("so2Value")),
+        "khai": _num(it.get("khaiValue")), "khai_grade": _grade(it.get("khaiGrade")),
+    } for it in items]
+
+
+def save_air(rows):
+    """DB 저장. 같은 (측정소, 측정시각)은 덮어쓰기라서 중복되지 않는다."""
+    sb.table("air_quality").upsert(rows, on_conflict="station_name,data_time").execute()
+
+
+@app.get("/air")
+async def get_air():
+    # 5분 캐시: 새로고침을 반복해도 공공데이터 호출 횟수를 아낀다
+    if time.time() - _air_cache["at"] > 300 or not _air_cache["rows"]:
+        _air_cache["rows"] = await fetch_air()
+        _air_cache["at"] = time.time()
+    saved = True
+    try:
+        await asyncio.to_thread(save_air, _air_cache["rows"])
+    except Exception:
+        saved = False  # 테이블 미생성/키 문제여도 화면 표시는 계속한다
+    return {"sido": SIDO_NAME, "saved_to_db": saved, "items": _air_cache["rows"]}
+
+
+@app.post("/admin/collect")
+async def collect(x_admin_token: str = Header(default="")):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(status_code=401, detail="관리자 토큰이 올바르지 않습니다")
+    rows = await fetch_air()
+    try:
+        await asyncio.to_thread(save_air, rows)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Supabase 오류: {e}")
+    return {"saved": len(rows)}
+
+
+@app.get("/air/history/{station}")
+def air_history(station: str, limit: int = 48):
+    try:
+        res = (sb.table("air_quality").select("*").eq("station_name", station)
+               .order("data_time", desc=True).limit(min(limit, 200)).execute())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Supabase 오류: {e}")
+    return res.data
+
+
+async def _collect_loop():
+    while True:
+        try:
+            await asyncio.to_thread(save_air, await fetch_air())
+        except Exception:
+            pass
+        await asyncio.sleep(max(COLLECT_MINUTES, 1) * 60)
+
+
+@app.on_event("startup")
+async def _start_collector():
+    if DATA_GO_KR_KEY:
+        asyncio.create_task(_collect_loop())
