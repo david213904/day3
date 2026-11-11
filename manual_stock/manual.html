@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>주식 1시간 봉 → FastAPI → Supabase 실습 매뉴얼</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; }
+  :root { --navy:#0a2242; --teal:#00a3a6; --ink:#1d2433; --mute:#5b6577; --line:#d9dee7; --code:#0f1726; --warn:#b4530f; --warnbg:#fff4e8; --okbg:#e9f8f7; }
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.55; margin: 0; background:#fff; }
+  h1 { color: var(--navy); font-size: 19pt; margin: 0 0 6px; padding-bottom: 6px; border-bottom: 3px solid var(--teal); page-break-after: avoid; }
+  h2 { color: var(--navy); font-size: 13pt; margin: 18px 0 6px; page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; color: var(--navy); page-break-after: avoid; }
+  p { margin: 5px 0; }
+  .chap { page-break-before: always; }
+  .num { display:inline-block; background: var(--teal); color:#fff; border-radius: 4px; padding: 0 7px; margin-right: 6px; font-size: 10pt; }
+  pre { background: var(--code); color: #e6edf6; font-family: Consolas, "D2Coding", monospace; font-size: 8.9pt; line-height: 1.45; padding: 9px 11px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; margin: 6px 0 9px; }
+  pre.short { page-break-inside: avoid; }
+  pre .c { color: #7f8ea8; }
+  code { font-family: Consolas, monospace; background: #eef1f6; padding: 0 4px; border-radius: 3px; font-size: 9.3pt; }
+  pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+  .file { font-family: Consolas, monospace; font-size: 8.6pt; color: #fff; background: var(--navy); display: inline-block; padding: 1px 9px; border-radius: 5px 5px 0 0; margin-top: 6px; page-break-after: avoid; break-after: avoid; }
+  .file + pre { margin-top: 0; border-top-left-radius: 0; }
+  .box { border-radius: 6px; padding: 8px 12px; margin: 8px 0; page-break-inside: avoid; }
+  .warn { background: var(--warnbg); border-left: 4px solid var(--warn); }
+  .warn b:first-child { color: var(--warn); }
+  .ok { background: var(--okbg); border-left: 4px solid var(--teal); }
+  table { width: 99.5%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9.2pt; page-break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 4px 7px; vertical-align: top; text-align: left; }
+  th { background: #f0f3f8; color: var(--navy); }
+  ol, ul { margin: 4px 0 6px; padding-left: 22px; }
+  li { margin: 2px 0; }
+  .check li { list-style: none; margin-left: -18px; }
+  .check li::before { content: "☐ "; color: var(--teal); font-weight: bold; }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover .tag { color: var(--teal); font-weight: bold; letter-spacing: 2px; font-size: 10pt; }
+  .cover h1 { font-size: 28pt; border: none; line-height: 1.25; }
+  .cover .sub { font-size: 12pt; color: var(--mute); margin-top: 10px; }
+  .cover .meta { margin-top: 40px; font-size: 9.5pt; color: var(--mute); border-top: 1px solid var(--line); padding-top: 10px; }
+  .toc { font-size: 10.5pt; }
+  .toc li { margin: 4px 0; }
+  .mute { color: var(--mute); font-size: 9pt; }
+  svg text { font-family: "Malgun Gothic", sans-serif; }
+
+  .pill { display:inline-block; border-radius: 10px; padding: 0 8px; font-size: 9pt; color:#fff; }
+  .p1 { background:#2f80ed; } .p2 { background:#00a3a6; } .p3 { background:#9b51e0; } .p4 { background:#0a2242; }
+  .two { display:flex; gap:10px; } .two > div { flex:1; }
+</style>
+</head>
+<body>
+
+<!-- ===================== 표지 ===================== -->
+<section class="cover">
+  <div class="tag">BACKEND PRACTICE · PART 2 · NO LOCAL SETUP</div>
+  <h1>주식 시세를 1시간마다 모아<br>FastAPI로 지표를 계산하고<br>Supabase에 쌓아 그래프로</h1>
+  <div class="sub">미세먼지 실습과 <b>같은 틀</b>에 데이터만 바꿔 끼우는 응용편<br>
+  내 PC 설치 없이 <b>GitHub 웹 업로드 → Railway 배포</b> · 프론트는 1분마다 그래프 갱신</div>
+
+  <svg viewBox="0 0 660 200" width="100%" style="margin-top:30px">
+    <defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#00a3a6"/></marker></defs>
+    <rect x="5" y="20" width="130" height="64" rx="10" fill="#fff" stroke="#2f80ed" stroke-width="2"/>
+    <text x="70" y="47" text-anchor="middle" font-size="13" font-weight="bold" fill="#2f80ed">yfinance</text>
+    <text x="70" y="67" text-anchor="middle" font-size="10.5" fill="#5b6577">1시간 봉 시세</text>
+    <rect x="210" y="10" width="200" height="170" rx="12" fill="#0a2242"/>
+    <text x="310" y="38" text-anchor="middle" font-size="15" font-weight="bold" fill="#fff">Railway · FastAPI</text>
+    <text x="310" y="68" text-anchor="middle" font-size="11.5" fill="#cfe9ea">① 받기 (종목마다)</text>
+    <text x="310" y="92" text-anchor="middle" font-size="11.5" fill="#cfe9ea">② 정리 (pandas)</text>
+    <text x="310" y="116" text-anchor="middle" font-size="11.5" fill="#cfe9ea">③ 지표 (등락률·이동평균·신호)</text>
+    <text x="310" y="140" text-anchor="middle" font-size="11.5" fill="#cfe9ea">⏰ 1시간마다 자동 수집</text>
+    <rect x="490" y="20" width="160" height="64" rx="10" fill="#fff" stroke="#0a2242" stroke-width="2"/>
+    <text x="570" y="47" text-anchor="middle" font-size="13" font-weight="bold" fill="#0a2242">Supabase</text>
+    <text x="570" y="67" text-anchor="middle" font-size="10.5" fill="#5b6577">④ candles 테이블</text>
+    <rect x="490" y="112" width="160" height="64" rx="10" fill="#fff" stroke="#00a3a6" stroke-width="2"/>
+    <text x="570" y="139" text-anchor="middle" font-size="13" font-weight="bold" fill="#00a3a6">Vercel (React)</text>
+    <text x="570" y="159" text-anchor="middle" font-size="10.5" fill="#5b6577">1분마다 그래프 갱신</text>
+    <line x1="137" y1="52" x2="205" y2="52" stroke="#00a3a6" stroke-width="2.5" marker-end="url(#a)"/>
+    <line x1="412" y1="52" x2="485" y2="52" stroke="#00a3a6" stroke-width="2.5" marker-end="url(#a)"/>
+    <line x1="487" y1="144" x2="415" y2="144" stroke="#00a3a6" stroke-width="2.5" marker-end="url(#a)"/>
+  </svg>
+
+  <div class="box warn" style="margin-top:24px"><b>교육용 예제입니다.</b> 백엔드 데이터 흐름을 배우기 위한 코드이며 투자 판단에 쓰지 않습니다. yfinance 시세는 15~20분 늦을 수 있고, 골든크로스 같은 신호는 계산 연습일 뿐 매수·매도 추천이 아닙니다.</div>
+
+  <div class="meta">
+    제주대 바이브코딩 초중급 · 백엔드 실습 2편 (1편: 공공데이터 미세먼지)<br>
+    준비물: GitHub 계정 · Railway 계정 · Supabase 프로젝트 · 이미 배포된 Vercel 프론트 (API 키 필요 없음)<br>
+    코드 폴더: <code>code\</code> (main.py · collect.py · db.py · requirements.txt · .python-version · railway.json · schema.sql · StockDemo.jsx)
+  </div>
+</section>
+
+<!-- ===================== 목차 ===================== -->
+<section class="chap">
+  <h1>목차</h1>
+  <ol class="toc">
+    <li>미세먼지 편과 같은 틀 · “실시간”의 뜻</li>
+    <li>데이터 흐름 · 파일 · API</li>
+    <li>Supabase 테이블 만들기</li>
+    <li>GitHub 업로드와 Railway 배포</li>
+    <li>/docs에서 수집·조회 눌러 보기</li>
+    <li>Vercel에 그래프 붙이기</li>
+    <li>수업용 코드 읽기 포인트</li>
+    <li>오류 해결표 · 체크리스트 · 응용</li>
+    <li>부록 — 전체 코드</li>
+  </ol>
+  <div class="box ok"><b>1편(미세먼지)을 해 봤다면 30분이면 끝납니다.</b> GitHub 업로드, Railway 연결, Variables, <code>/docs</code> 테스트 순서가 똑같습니다. 다른 점은 <b>받는 곳(yfinance)</b>, <b>가공 내용(봉·이동평균·신호)</b>, <b>화면(그래프)</b> 세 가지뿐입니다.</div>
+  <div class="box ok"><b>이번엔 인증키가 필요 없습니다.</b> yfinance는 키 없이 시세를 줍니다. 그래서 Variables는 Supabase 두 개, 관리자 암호, Vercel 주소만 넣으면 됩니다.</div>
+</section>
+
+<!-- ===================== 1. 같은 틀 ===================== -->
+<section class="chap">
+  <h1><span class="num">1</span>미세먼지 편과 같은 틀 · “실시간”의 뜻</h1>
+  <table>
+    <tr><th style="width:15%">단계</th><th style="width:40%">1편 미세먼지</th><th>2편 주식 (이번)</th></tr>
+    <tr><td><span class="pill p1">① 받기</span></td><td>에어코리아 공공 API (인증키)</td><td>yfinance — 종목마다 최근 한 달치 1시간 봉 (키 없음)</td></tr>
+    <tr><td><span class="pill p2">② 가공</span></td><td><code>"-"</code>, <code>24:00</code>, 통신장애, <code>-999</code> 정리 + 등급</td><td>빈 종가 버리기, 원화 정수로, 한국 시간 통일</td></tr>
+    <tr><td><span class="pill p3">③ 계산</span></td><td>1시간 뒤 예측 (scikit-learn)</td><td>등락률 · 5시간/20시간 이동평균 · 골든/데드크로스 · 급변동</td></tr>
+    <tr><td><span class="pill p4">④ 저장</span></td><td><code>air_readings</code></td><td><code>candles</code> (같은 봉은 덮어쓰기)</td></tr>
+    <tr><td>⏰ 자동</td><td>60분마다</td><td>60분마다 (장 마감 후에는 같은 값을 덮어쓸 뿐)</td></tr>
+    <tr><td>화면</td><td>측정소 표 + 등급 색</td><td>종목 버튼 + 꺾은선 그래프, <b>1분마다 자동 새로고침</b></td></tr>
+  </table>
+
+  <h2>왜 여기서도 FastAPI + Railway인가</h2>
+  <ul>
+    <li><b>장중 내내 혼자 모아야 합니다.</b> 아무도 사이트를 안 열어도 1시간마다 새 봉이 쌓여야 그래프에 구멍이 없습니다.</li>
+    <li><b>파이썬 도구가 필요합니다.</b> yfinance와 pandas(이동평균 <code>rolling</code>, 등락률 <code>pct_change</code>)는 브라우저에서 못 씁니다.</li>
+    <li><b>계산은 한 번만.</b> 서버가 지표까지 계산해 저장하면, 화면 100개가 열려도 각자 계산하지 않고 결과만 받습니다.</li>
+    <li><b>나중에 증권사 API로 바꿀 때</b> 그 키도 Railway Variables에만 둡니다. 화면 코드는 바뀌지 않습니다.</li>
+  </ul>
+
+  <h2>“실시간”은 어디까지인가</h2>
+  <table>
+    <tr><th style="width:24%">방식</th><th style="width:26%">얼마나 자주</th><th>이 실습과의 관계</th></tr>
+    <tr><td>증권사 실시간(웹소켓)</td><td>체결될 때마다 (1초에도 여러 번)</td><td>계좌·키 발급이 필요해서 이번엔 제외 (8장 응용)</td></tr>
+    <tr><td><b>yfinance 1시간 봉</b></td><td>1시간 단위, 15~20분 지연</td><td><b>이번 실습</b>. 장 시간(09:00~15:30)에 하루 6~7개 봉</td></tr>
+    <tr><td>공공데이터포털 주식시세</td><td>하루 1번 (전날 종가)</td><td>1시간 그래프는 못 그림</td></tr>
+  </table>
+  <p>미세먼지도 한 시간에 한 번 갱신되는 데이터였습니다. 공공·무료 데이터는 대부분 이렇게 <b>정해진 간격</b>으로 갱신되고, 그래서 서버가 <b>같은 간격으로 계속 받아 쌓는 것</b>이 백엔드의 일입니다. 화면의 1분 새로고침은 “서버가 새 봉을 쌓았는지 확인하는 것”입니다.</p>
+  <div class="box warn"><b>공개 사이트 주의:</b> 거래소 시세는 다시 배포하는 데 제한이 있습니다. 수업에서는 Vercel 주소를 수강생끼리만 공유하거나 연습 모드(<code>DEMO_MODE=1</code>)로 운영하세요.</div>
+</section>
+
+<!-- ===================== 2. 흐름 ===================== -->
+<section class="chap">
+  <h1><span class="num">2</span>데이터 흐름 · 파일 · API</h1>
+  <table>
+    <tr><th style="width:17%">단계</th><th style="width:15%">파일</th><th>하는 일</th></tr>
+    <tr><td><span class="pill p1">① 받기</span></td><td><code>collect.py</code></td><td><code>fetch_yf()</code> — <code>yf.Ticker(종목).history(period="1mo", interval="1h")</code>. <code>DEMO_MODE=1</code>이면 <code>fetch_demo()</code>가 가짜 시세(평일 09~15시 봉, 빈칸·진행 중인 봉 포함)를 만듦</td></tr>
+    <tr><td><span class="pill p2">② 정리</span></td><td><code>collect.py</code></td><td><code>clean()</code> 1~4단계: 필요한 칸만, 빈 종가 버리기, 원화 정수, 한국 시간 정렬</td></tr>
+    <tr><td><span class="pill p3">③ 지표</span></td><td><code>collect.py</code></td><td><code>clean()</code> 5~6단계: 등락률, 이동평균(5·20), 골든/데드크로스, 급변동(<code>SPIKE_PCT</code>% 이상)</td></tr>
+    <tr><td><span class="pill p4">④ 저장</span></td><td><code>db.py</code></td><td><code>candles</code>에 덮어쓰기 저장(500개씩 나눠서), 수집 기록은 <code>stock_logs</code></td></tr>
+    <tr><td>⏰·📡</td><td><code>main.py</code></td><td>60분마다 자동 수집 + API 주소들. 한 종목이 실패해도 나머지는 계속</td></tr>
+  </table>
+<pre class="short">code/
+├─ main.py            <span class="c"># API 주소들 + 1시간마다 자동 수집</span>
+├─ collect.py         <span class="c"># ① 받기 + ② 정리 + ③ 지표</span>
+├─ db.py              <span class="c"># ④ Supabase 저장 (변수 없으면 메모리 임시 저장)</span>
+├─ requirements.txt   <span class="c"># fastapi · uvicorn · pandas · yfinance · supabase</span>
+├─ .python-version    <span class="c"># 3.12</span>
+├─ railway.json       <span class="c"># 시작 명령 + 헬스체크</span>
+├─ schema.sql         <span class="c"># Supabase에 붙여 넣을 테이블</span>
+└─ StockDemo.jsx      <span class="c"># Vercel 프론트에 넣을 그래프 화면</span></pre>
+
+  <h3>API 한눈에</h3>
+  <table>
+    <tr><th style="width:34%">주소</th><th style="width:9%">방식</th><th>돌려주는 것</th></tr>
+    <tr><td><code>/health</code></td><td>GET</td><td>모드(yfinance/demo), 저장소, 종목 목록, 빠진 환경변수</td></tr>
+    <tr><td><code>/collect</code></td><td>POST</td><td>지금 바로 1회 수집. 헤더 <code>x-admin-token</code>. 받은 봉·버린 봉·저장 수·실패 종목</td></tr>
+    <tr><td><code>/stocks</code></td><td>GET</td><td>종목별 마지막 봉 (가격·등락률) — 버튼 목록용</td></tr>
+    <tr><td><code>/stocks/005930.KS/candles?limit=120</code></td><td>GET</td><td>그래프용 1시간 봉 (오래된 → 최신)</td></tr>
+    <tr><td><code>/stocks/005930.KS/signals</code></td><td>GET</td><td>골든크로스·데드크로스·급변동이 있었던 봉만 (최근 30개)</td></tr>
+    <tr><td><code>/logs</code></td><td>GET</td><td>최근 수집 기록 20개</td></tr>
+  </table>
+  <p class="mute">종목 코드는 야후 형식입니다: 코스피 <code>005930.KS</code>(삼성전자), 코스닥은 <code>.KQ</code>. 기본 종목: 삼성전자·SK하이닉스·NAVER.</p>
+</section>
+
+<!-- ===================== 3. Supabase ===================== -->
+<section class="chap">
+  <h1><span class="num">3</span>Supabase 테이블 만들기</h1>
+  <p>Supabase → <b>SQL Editor</b> → <b>New query</b> → 붙여 넣고 <b>Run</b>. 1편과 같은 프로젝트를 써도 됩니다. 테이블 이름이 달라서 섞이지 않습니다.</p>
+  <div class="box ok">수집 기록 테이블 이름은 <code>stock_logs</code>라서 1편의 <code>collect_logs</code>와 겹치지 않습니다.</div>
+  <div class="file">schema.sql</div>
+<pre><span class="c">-- Supabase → SQL Editor 에 붙여 넣고 Run</span>
+create table if not exists candles (
+  id          bigint generated always as identity primary key,
+  source      text not null,                 <span class="c">-- 'yfinance'(진짜) / 'demo'(연습)</span>
+  ticker      text not null,                 <span class="c">-- 005930.KS</span>
+  name        text,                          <span class="c">-- 삼성전자</span>
+  ts          timestamptz not null,          <span class="c">-- 봉 시작 시각 (1시간 단위)</span>
+  open        bigint, high bigint, low bigint, close bigint,
+  volume      bigint,
+  change_pct  real,                          <span class="c">-- 직전 봉 대비 등락률 %  (FastAPI가 계산)</span>
+  ma5         real,                          <span class="c">-- 5시간 이동평균</span>
+  ma20        real,                          <span class="c">-- 20시간 이동평균</span>
+  signal      text,                          <span class="c">-- 골든크로스 / 데드크로스 / 급변동</span>
+  collected_at timestamptz not null default now(),
+  unique (source, ticker, ts)                <span class="c">-- 같은 봉은 덮어쓰기 (중복 방지)</span>
+);
+
+create table if not exists stock_logs (
+  id       bigint generated always as identity primary key,
+  ran_at   timestamptz not null default now(),
+  source   text,
+  tickers  int,      <span class="c">-- 종목 수</span>
+  fetched  int,      <span class="c">-- 받은 봉 수</span>
+  dropped  int,      <span class="c">-- 버린 봉 수</span>
+  cleaned  int,      <span class="c">-- 정리된 봉 수</span>
+  saved    int,      <span class="c">-- 저장(덮어쓰기 포함)된 봉 수</span>
+  error    text      <span class="c">-- 실패한 종목 메시지</span>
+);
+
+<span class="c">-- 브라우저에서 직접 못 건드리게 잠금. FastAPI는 secret 키라서 통과.</span>
+alter table candles enable row level security;
+alter table stock_logs enable row level security;</pre>
+  <p>Railway에 넣을 값: <b>Project Settings → Data API</b>의 Project URL(<code>SUPABASE_URL</code>), <b>API Keys</b>의 Secret key <code>sb_secret_…</code>(<code>SUPABASE_SECRET_KEY</code>). secret 키는 서버 전용입니다.</p>
+</section>
+
+<!-- ===================== 4. 배포 ===================== -->
+<section class="chap">
+  <h1><span class="num">4</span>GitHub 업로드와 Railway 배포</h1>
+  <h2>4-1. GitHub (브라우저만)</h2>
+  <ol>
+    <li>github.com → <b>New repository</b> → 이름 <code>stock-api</code> · Private → Create</li>
+    <li><b>uploading an existing file</b> → <code>code</code> 폴더 <b>안의 파일들</b>을 끌어다 놓기 → <b>Commit changes</b></li>
+    <li><code>.python-version</code>이 안 보이면 탐색기 <b>보기 → 숨긴 항목</b> 체크, 또는 GitHub에서 <b>Add file → Create new file</b>로 직접 만들기(내용 <code>3.12</code>)</li>
+  </ol>
+  <h2>4-2. Railway</h2>
+  <ol>
+    <li>railway.com → <b>New Project → Deploy from GitHub repo</b> → <code>stock-api</code></li>
+    <li>서비스 → <b>Variables → Raw Editor</b>에 붙여 넣고 값 바꾸기 → <b>Update Variables</b> → 위에 뜨는 <b>Deploy</b></li>
+  </ol>
+<pre class="short">SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_xxxxxxxxxxxxxxxx
+ADMIN_TOKEN=stock-아무도모르는-긴문자열-2026
+FRONT_ORIGINS=https://my-app.vercel.app
+TICKERS=005930.KS,000660.KS,035420.KS
+DEMO_MODE=0
+COLLECT_MINUTES=60
+SPIKE_PCT=1.5</pre>
+  <table>
+    <tr><th style="width:25%">변수</th><th>뜻</th></tr>
+    <tr><td><code>TICKERS</code></td><td>모을 종목(쉼표). 종목이 많을수록 수집 시간이 길어지니 수업에선 3~5개</td></tr>
+    <tr><td><code>DEMO_MODE</code></td><td><code>1</code>이면 가짜 시세. yfinance가 막히거나 주말에 움직임을 보여 주고 싶을 때</td></tr>
+    <tr><td><code>SPIKE_PCT</code></td><td>한 시간에 몇 % 이상 움직이면 “급변동”으로 표시할지</td></tr>
+    <tr><td><code>COLLECT_MINUTES</code></td><td>자동 수집 간격(분). 1시간 봉이므로 60이면 충분, 더 빨리 반영하려면 15~30</td></tr>
+  </table>
+  <ol start="3">
+    <li><b>Settings → Networking → Generate Domain</b> → <code>https://…/health</code> 확인</li>
+  </ol>
+<pre class="short">{"ok":true,"mode":"yfinance","store":"supabase",
+ "tickers":["005930.KS","000660.KS","035420.KS"],"auto_collect_minutes":60,"missing":[]}</pre>
+  <div class="box warn"><b>Serverless(App Sleeping)는 끄세요.</b> 서버가 자면 1시간마다 하는 수집도 멈춥니다.</div>
+</section>
+
+<!-- ===================== 5. /docs ===================== -->
+<section class="chap">
+  <h1><span class="num">5</span>/docs에서 수집·조회 눌러 보기</h1>
+  <p><code>https://…/docs</code>를 엽니다. 서버가 켜지면 바로 1회 수집하므로, 대개 이미 데이터가 들어 있습니다.</p>
+  <h2>5-1. 수집 기록 — <code>GET /logs</code></h2>
+<pre class="short">[{"source":"yfinance","tickers":3,"fetched":396,"dropped":0,"cleaned":396,"saved":396,"error":null}]</pre>
+  <p class="mute">실제 실행 예(3종목 × 약 132개 봉 = 한 달치). 연습 모드에서는 <code>"fetched":462, "dropped":3</code>처럼 일부러 넣은 빈 봉이 버려지는 게 보입니다.</p>
+  <div class="box ok"><b>수업 포인트:</b> 1시간마다 다시 수집해도 <code>saved</code>는 늘지만 Supabase 행 수는 거의 그대로입니다. 같은 종목·같은 시각은 <b>덮어쓰기(upsert)</b>라서, 새로 생긴 봉만 행이 늘어납니다. Table Editor에서 행 수를 비교해 보세요.</div>
+
+  <h2>5-2. 지금 바로 수집 — <code>POST /collect</code></h2>
+  <p>Try it out → <b>x-admin-token</b>에 <code>ADMIN_TOKEN</code> 값 → Execute. 응답의 <code>"error"</code>에 종목별 실패 이유가 들어 있습니다(없으면 <code>null</code>).</p>
+
+  <h2>5-3. 그래프 데이터 — <code>GET /stocks/{ticker}/candles</code></h2>
+  <p><b>ticker</b>에 <code>005930.KS</code>, <b>limit</b>에 <code>3</code> → Execute</p>
+<pre class="short">{"ticker":"005930.KS","name":"삼성전자","mode":"yfinance","candles":[
+ {"time":"2026-11-10 13:00","close":198300,"change_pct":0.15,"ma5":198670.0,"ma20":194778.0,"signal":null},
+ {"time":"2026-11-10 14:00","close":199600,"change_pct":0.66,"ma5":198830.0,"ma20":194558.0,"signal":null}, …]}</pre>
+  <p class="mute">값은 실행하는 날 시세에 따라 다릅니다. 응답의 <code>open·high·low·volume</code>은 줄였습니다.</p>
+
+  <h2>5-4. 신호만 — <code>GET /stocks/{ticker}/signals</code></h2>
+  <p>골든크로스(5시간 평균이 20시간 평균을 위로 뚫음), 데드크로스(아래로 뚫음), 급변동(한 시간에 <code>SPIKE_PCT</code>% 이상)이 표시된 봉만 나옵니다. 그래프의 색 점과 같습니다.</p>
+</section>
+
+<!-- ===================== 6. Vercel ===================== -->
+<section class="chap">
+  <h1><span class="num">6</span>Vercel에 그래프 붙이기</h1>
+  <ol>
+    <li>Vercel → Settings → Environment Variables: <code>VITE_API_URL</code> = <code>https://stock-api-production-xxxx.up.railway.app</code> (끝 / 없이) → <b>Redeploy</b></li>
+    <li><code>StockDemo.jsx</code>를 프론트 <code>src</code>에 넣고 <code>App.jsx</code>에서 <code>import StockDemo from "./StockDemo";</code> → <code>&lt;StockDemo /&gt;</code></li>
+    <li>Railway <code>FRONT_ORIGINS</code>에 Vercel 주소가 있는지 확인 (CORS)</li>
+  </ol>
+  <p>그래프 라이브러리를 설치하지 않도록 <b>SVG로 직접</b> 그렸습니다. 종가(실선), 5시간·20시간 평균(점선), 신호(색 점)를 그리고 <b>1분마다</b> 다시 물어봅니다.</p>
+  <div class="file">src/StockDemo.jsx</div>
+<pre><span class="c">// Vercel 프론트(React)에 넣는 화면 — 그래프용 데이터만 Railway에 물어본다 (라이브러리 없이 SVG)</span>
+import { useEffect, useState } from "react";
+
+const API = import.meta.env.VITE_API_URL;
+const W = 640, H = 300, PAD = 40;
+
+function Chart({ candles }) {
+  if (!candles.length) return null;
+  const vals = candles.flatMap((c) =&gt; [c.close, c.ma5, c.ma20]).filter((v) =&gt; v != null);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const x = (i) =&gt; PAD + (i * (W - PAD * 2)) / Math.max(1, candles.length - 1);
+  const y = (v) =&gt; H - PAD - ((v - min) / Math.max(1, max - min)) * (H - PAD * 2);
+  const line = (key) =&gt;
+    candles.map((c, i) =&gt; (c[key] == null ? null : `${x(i)},${y(c[key])}`)).filter(Boolean).join(" ");
+  const mark = { 골든크로스: "#27ae60", 데드크로스: "#eb5757", 급변동: "#f2994a" };
+
+  return (
+    &lt;svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", background: "#fff", border: "1px solid #ddd" }}&gt;
+      &lt;text x={PAD} y={20} fontSize="12"&gt;{max.toLocaleString()}원&lt;/text&gt;
+      &lt;text x={PAD} y={H - 8} fontSize="12"&gt;{min.toLocaleString()}원&lt;/text&gt;
+      &lt;polyline points={line("close")} fill="none" stroke="#0d8784" strokeWidth="2" /&gt;
+      &lt;polyline points={line("ma5")} fill="none" stroke="#3a82d2" strokeWidth="1.5" strokeDasharray="4 3" /&gt;
+      &lt;polyline points={line("ma20")} fill="none" stroke="#8e6bc9" strokeWidth="1.5" strokeDasharray="4 3" /&gt;
+      {candles.map((c, i) =&gt;
+        c.signal ? &lt;circle key={i} cx={x(i)} cy={y(c.close)} r="4" fill={mark[c.signal]} /&gt; : null
+      )}
+    &lt;/svg&gt;
+  );
+}
+
+export default function StockDemo() {
+  const [list, setList] = useState([]);
+  const [ticker, setTicker] = useState("005930.KS");
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+
+  async function load() {
+    try {
+      const [l, d] = await Promise.all([
+        fetch(`${API}/stocks`).then((r) =&gt; r.json()),
+        fetch(`${API}/stocks/${ticker}/candles?limit=120`).then((r) =&gt; r.json()),
+      ]);
+      setList(l);
+      setData(d);
+      setError("");
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  <span class="c">// 처음 + 종목을 바꿀 때 + 1분마다 다시 물어보기 (서버는 1시간마다 새 봉을 저장)</span>
+  useEffect(() =&gt; {
+    load();
+    const id = setInterval(load, 60_000);
+    return () =&gt; clearInterval(id);
+  }, [ticker]);
+
+  const last = data?.candles?.at(-1);
+  return (
+    &lt;div style={{ padding: 20, maxWidth: 680 }}&gt;
+      &lt;h3&gt;주식 1시간 봉 (yfinance → FastAPI 가공 → Supabase)&lt;/h3&gt;
+      &lt;p style={{ fontSize: 12, color: "#888" }}&gt;교육용 예제 · 시세는 늦을 수 있음 · 투자 판단용 아님&lt;/p&gt;
+      {error &amp;&amp; &lt;p style={{ color: "red" }}&gt;{error}&lt;/p&gt;}
+      &lt;div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}&gt;
+        {list.map((s) =&gt; (
+          &lt;button key={s.ticker} onClick={() =&gt; setTicker(s.ticker)}
+            style={{ fontWeight: s.ticker === ticker ? 700 : 400 }}&gt;
+            {s.name} {s.ready &amp;&amp; &lt;span style={{ color: s.change_pct &gt;= 0 ? "#d8443a" : "#3a82d2" }}&gt;
+              {s.change_pct &gt;= 0 ? "▲" : "▼"}{Math.abs(s.change_pct ?? 0)}%&lt;/span&gt;}
+          &lt;/button&gt;
+        ))}
+      &lt;/div&gt;
+      {last &amp;&amp; (
+        &lt;p&gt;
+          &lt;b&gt;{data.name}&lt;/b&gt; {last.close.toLocaleString()}원 · {last.time} 봉
+          {data.mode === "demo" &amp;&amp; &lt;small&gt; (연습 데이터)&lt;/small&gt;}
+        &lt;/p&gt;
+      )}
+      {data?.candles &amp;&amp; &lt;Chart candles={data.candles} /&gt;}
+      &lt;p style={{ fontSize: 12 }}&gt;
+        &lt;span style={{ color: "#0d8784" }}&gt;━ 종가&lt;/span&gt;{" "}
+        &lt;span style={{ color: "#3a82d2" }}&gt;┅ 5시간 평균&lt;/span&gt;{" "}
+        &lt;span style={{ color: "#8e6bc9" }}&gt;┅ 20시간 평균&lt;/span&gt;{" "}
+        ● 신호(골든·데드크로스, 급변동)
+      &lt;/p&gt;
+    &lt;/div&gt;
+  );
+}</pre>
+  <div class="box ok"><b>프론트에는 계산 코드가 없습니다.</b> 이동평균도 신호도 서버가 이미 계산해 DB에 넣어 두었고, 화면은 받은 숫자로 선을 그릴 뿐입니다. 1편과 같은 역할 분리입니다.</div>
+</section>
+
+<!-- ===================== 7. 코드 읽기 ===================== -->
+<section class="chap">
+  <h1><span class="num">7</span>수업용 코드 읽기 포인트</h1>
+  <h2>7-1. 1시간 봉이란</h2>
+  <p>한 시간 동안의 가격을 네 숫자로 줄인 것입니다: <b>시가</b>(처음), <b>고가</b>(가장 높음), <b>저가</b>(가장 낮음), <b>종가</b>(마지막). 그래프는 보통 종가를 잇습니다. 장중 마지막 봉은 아직 <b>진행 중</b>이라 다음 수집 때 값이 바뀌고, 같은 시각이라 덮어써집니다.</p>
+
+  <h2>7-2. <code>clean()</code> 일곱 단계</h2>
+  <table>
+    <tr><th style="width:6%">#</th><th style="width:44%">코드</th><th>왜</th></tr>
+    <tr><td>1</td><td>필요한 칸만, 소문자 이름</td><td>yfinance는 배당·분할 칸도 줌 → DB 칸과 맞춤</td></tr>
+    <tr><td>2</td><td>빈 종가·0 이하 버리기</td><td>거래 정지·데이터 누락 봉은 선을 망침</td></tr>
+    <tr><td>3</td><td>원화 → 정수</td><td><code>199600.0</code> 같은 소수점 제거</td></tr>
+    <tr><td>4</td><td>한국 시간으로 통일 · 시간순 정렬</td><td>DB와 화면 시각을 맞춤</td></tr>
+    <tr><td>5</td><td><code>pct_change()</code>, <code>rolling(5)</code>, <code>rolling(20)</code></td><td>등락률·이동평균을 한 줄로 (pandas의 힘)</td></tr>
+    <tr><td>6</td><td>평균선 위아래가 바뀐 순간 = 크로스, 큰 등락 = 급변동</td><td>“계산된 정보”를 함께 저장</td></tr>
+    <tr><td>7</td><td>DB 행(dict)으로</td><td>빈값(NaN)은 <code>None</code>으로 바꿔야 저장됨</td></tr>
+  </table>
+
+  <h2>7-3. 이동평균과 크로스 (그림)</h2>
+  <svg viewBox="0 0 640 170" width="100%">
+    <polyline points="20,120 70,110 120,118 170,100 220,85 270,92 320,70 370,60 420,72 470,55 520,48 570,40 620,45" fill="none" stroke="#0d8784" stroke-width="2.5"/>
+    <polyline points="20,125 70,120 120,118 170,112 220,104 270,98 320,90 370,80 420,74 470,68 520,62 570,55 620,50" fill="none" stroke="#3a82d2" stroke-width="2" stroke-dasharray="5 4"/>
+    <polyline points="20,100 70,101 120,102 170,101 220,100 270,99 320,96 370,93 420,90 470,86 520,82 570,78 620,74" fill="none" stroke="#8e6bc9" stroke-width="2" stroke-dasharray="5 4"/>
+    <circle cx="282" cy="97" r="7" fill="#27ae60"/>
+    <text x="292" y="125" font-size="12" fill="#27ae60" font-weight="bold">골든크로스: 5시간 평균이 20시간 평균 위로</text>
+    <text x="20" y="160" font-size="11" fill="#0d8784">━ 종가</text>
+    <text x="80" y="160" font-size="11" fill="#3a82d2">┅ 5시간 평균 (빠르게 따라감)</text>
+    <text x="260" y="160" font-size="11" fill="#8e6bc9">┅ 20시간 평균 (천천히 따라감)</text>
+  </svg>
+<pre class="short">above   = ma5 &gt; ma20                       <span class="c"># 지금 빠른 선이 위인가?</span>
+crossed = above != above.shift()           <span class="c"># 직전 봉과 위아래가 바뀌었나?</span>
+crossed &amp; above   → "골든크로스"
+crossed &amp; ~above  → "데드크로스"</pre>
+  <p class="mute">신호는 “이런 계산을 서버에서 한다”는 예시일 뿐, 맞는지 틀리는지 보장하지 않습니다.</p>
+
+  <h2>7-4. 한 종목이 실패해도</h2>
+<pre class="short">for t in TICKERS:
+    try:   받기 → 정리 → 저장
+    except Exception as e:
+        errors.append(...)   <span class="c"># 기록만 하고 다음 종목으로</span></pre>
+  <p>잘못된 종목 코드 하나 때문에 전체 수집이 멈추지 않게 하는 서버 코드의 기본 습관입니다. 실패 이유는 <code>stock_logs.error</code>에 남습니다.</p>
+</section>
+
+<!-- ===================== 8. 오류/체크/응용 ===================== -->
+<section class="chap">
+  <h1><span class="num">8</span>오류 해결표 · 체크리스트 · 응용</h1>
+  <table>
+    <tr><th style="width:32%">증상</th><th style="width:30%">원인</th><th>해결</th></tr>
+    <tr><td><code>/logs</code>의 error에 <code>Too Many Requests</code> / <code>Rate limited</code></td><td>야후가 Railway 같은 클라우드 서버 요청을 일시적으로 막음</td><td>잠시 뒤 <code>/collect</code> 재시도, 종목 수 줄이기, 수업 중엔 <code>DEMO_MODE=1</code></td></tr>
+    <tr><td>error에 <code>시세가 비어 있습니다</code></td><td>종목 코드 오타(<code>.KS</code>/<code>.KQ</code>) 또는 상장폐지</td><td>finance.yahoo.com에서 코드 확인</td></tr>
+    <tr><td>빌드 실패 <code>No start command</code></td><td>파일이 <code>code/</code> 폴더째 올라감</td><td>저장소 맨 위에 <code>main.py</code>가 오게 다시 업로드</td></tr>
+
+    <tr><td><code>no unique or exclusion constraint</code></td><td>테이블에 unique 줄이 빠짐</td><td>schema.sql 그대로 다시 만들기</td></tr>
+    <tr><td><code>/health</code>의 store가 <code>memory(임시)</code></td><td>SUPABASE 변수 누락 / Deploy 안 누름</td><td>Variables 확인 → Deploy</td></tr>
+    <tr><td><code>/stocks/…/candles</code> 404</td><td>그 종목이 TICKERS에 없거나 수집 전</td><td>TICKERS 확인, <code>/collect</code> 실행</td></tr>
+    <tr><td>그래프가 주말 내내 안 움직임</td><td>장이 닫혀 새 봉이 없음 (정상)</td><td>움직임을 보여 주려면 <code>DEMO_MODE=1</code></td></tr>
+    <tr><td>ma20이 처음 몇 개 <code>null</code></td><td>20개가 쌓여야 평균을 낼 수 있음 (정상)</td><td>—</td></tr>
+    <tr><td>프론트 <code>Failed to fetch</code> + CORS</td><td><code>FRONT_ORIGINS</code> 불일치</td><td>Vercel 주소 그대로, 끝 / 없이 → Deploy</td></tr>
+  </table>
+  <h3>체크리스트</h3>
+  <ul class="check">
+    <li>Supabase에 <code>candles</code>, <code>stock_logs</code> 테이블 (RLS 켜짐)</li>
+    <li>GitHub 저장소 맨 위에 <code>main.py</code>, <code>requirements.txt</code>, <code>railway.json</code>, <code>.python-version</code></li>
+    <li>Railway Variables: SUPABASE_URL · SUPABASE_SECRET_KEY · ADMIN_TOKEN · FRONT_ORIGINS · TICKERS</li>
+    <li><code>/health</code> → <code>"store":"supabase"</code>, <code>/logs</code> → <code>"error": null</code></li>
+    <li><code>/stocks/005930.KS/candles</code>에 봉이 120개 안팎</li>
+    <li>Vercel <code>VITE_API_URL</code> 추가 후 재배포, 그래프와 종목 버튼 동작</li>
+  </ul>
+  <h3>응용 과제</h3>
+  <table>
+    <tr><th style="width:26%">바꿀 곳</th><th>아이디어</th></tr>
+    <tr><td>① 받기</td><td>한국투자증권 Open API(모의투자 계좌)로 바꾸기 → 진짜 실시간. 키는 Variables에만, 화면 코드는 그대로</td></tr>
+    <tr><td>② 가공</td><td>시간 봉을 모아 <b>일봉</b> 만들기(<code>resample("1D")</code>), 거래량 급증 표시</td></tr>
+    <tr><td>③ 계산</td><td>RSI 같은 다른 지표, 1편처럼 scikit-learn으로 다음 봉 예측 후 <b>얼마나 틀리는지</b> 기록</td></tr>
+    <tr><td>화면</td><td>Supabase Realtime으로 새 봉이 저장되는 순간 그래프에 바로 반영 (1분 새로고침 대신)</td></tr>
+    <tr><td>합치기</td><td>1편 미세먼지 + 2편 주식을 한 Railway 서비스에 → “수집기 여러 개를 가진 백엔드”</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 부록 ===================== -->
+<section class="chap">
+  <h1><span class="num">A</span>부록 — 전체 코드</h1>
+  <div class="file">main.py</div>
+<pre>"""
+main.py — 주식 1시간 봉 백엔드 (FastAPI)  ※ 교육용 예제, 투자 판단용 아님
+
+   yfinance ──① 받기──▶ FastAPI ──② 정리·지표 계산──▶ ④ Supabase 저장
+                           ▲
+   Vercel(React) ── 그래프용 데이터만 요청 ──┘
+
+Railway Variables
+  SUPABASE_URL, SUPABASE_SECRET_KEY   Supabase 연결 (없으면 메모리 임시 저장)
+  ADMIN_TOKEN                         /collect 를 아무나 못 누르게 하는 암호
+  FRONT_ORIGINS                       Vercel 주소 (쉼표로 여러 개)
+  TICKERS=005930.KS,000660.KS,035420.KS   종목 (야후 코드: 코스피 .KS · 코스닥 .KQ)
+  DEMO_MODE=0     1 이면 가짜 시세 (yfinance가 막혔을 때)
+  COLLECT_MINUTES=60  SPIKE_PCT=1.5  AUTO_COLLECT=1
+"""
+import asyncio
+import logging
+import os
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+import collect
+import db
+
+log = logging.getLogger("uvicorn.error")
+
+TICKERS = [t.strip().upper() for t in os.getenv("TICKERS", "005930.KS,000660.KS,035420.KS").split(",") if t.strip()]
+DEMO = os.getenv("DEMO_MODE", "0") == "1"
+SOURCE = "demo" if DEMO else "yfinance"
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
+AUTO = os.getenv("AUTO_COLLECT", "1") == "1"
+MINUTES = int(os.getenv("COLLECT_MINUTES", "60"))
+SPIKE = float(os.getenv("SPIKE_PCT", "1.5"))
+FRONT_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("FRONT_ORIGINS", "").split(",") if o.strip()]
+
+store = db.get_store()
+
+
+<span class="c"># ─────────── 수집 한 번 = 종목마다 받기 → 정리·지표 → 저장, 그리고 기록 ───────────</span>
+def run_collect() -&gt; dict:
+    total = {"fetched": 0, "dropped": 0, "cleaned": 0, "saved": 0}
+    errors = []
+    for t in TICKERS:
+        try:
+            raw = collect.fetch_demo(t) if DEMO else collect.fetch_yf(t)
+            rows, st = collect.clean(raw, t, SOURCE, SPIKE)
+            saved = store.save_candles(rows)
+            for k in ["fetched", "dropped", "cleaned"]:
+                total[k] += st[k]
+            total["saved"] += saved
+        except Exception as e:<span class="c">                      # 한 종목이 실패해도 나머지는 계속</span>
+            errors.append(f"{t}: {e}"[:200])
+    entry = {"ran_at": datetime.now(timezone.utc).isoformat(), "source": SOURCE,
+             "tickers": len(TICKERS), **total, "error": "; ".join(errors) or None}
+    store.save_log(entry)
+    log.info("collect %s", entry)
+    return entry
+
+
+async def auto_loop():
+    """서버가 켜져 있는 동안 COLLECT_MINUTES 마다 자동 수집 (브라우저가 꺼져 있어도)"""
+    while True:
+        try:
+            await asyncio.to_thread(run_collect)
+        except Exception:
+            log.exception("자동 수집 실패")
+        await asyncio.sleep(MINUTES * 60)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(auto_loop()) if AUTO else None
+    yield
+    if task:
+        task.cancel()
+
+
+app = FastAPI(title="주식 1시간 봉 백엔드 (교육용)", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=FRONT_ORIGINS,
+                   allow_methods=["*"], allow_headers=["*"])
+
+
+def _view(r):
+    return {"time": db.kst(r["ts"]), "open": r["open"], "high": r["high"], "low": r["low"],
+            "close": r["close"], "volume": r["volume"], "change_pct": r["change_pct"],
+            "ma5": r["ma5"], "ma20": r["ma20"], "signal": r["signal"]}
+
+
+@app.get("/")
+def home():
+    return {"service": "주식 1시간 봉 백엔드 (교육용)", "mode": SOURCE, "docs": "/docs"}
+
+
+@app.get("/health")
+def health():
+    missing = [k for k in ["SUPABASE_URL", "SUPABASE_SECRET_KEY", "ADMIN_TOKEN", "FRONT_ORIGINS"]
+               if not os.getenv(k, "").strip()]
+    return {"ok": True, "mode": SOURCE, "store": store.kind, "tickers": TICKERS,
+            "auto_collect_minutes": MINUTES if AUTO else None, "missing": missing}
+
+
+@app.post("/collect")
+def collect_now(x_admin_token: str = Header(default="")):
+    """지금 바로 한 번 수집 (Swagger /docs 에서 Try it out)"""
+    if not ADMIN_TOKEN:
+        raise HTTPException(503, "Railway Variables에 ADMIN_TOKEN을 먼저 넣으세요")
+    if x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(401, "x-admin-token이 틀렸습니다")
+    return run_collect()
+
+
+@app.get("/stocks")
+def stocks():
+    """종목별 마지막 봉 요약 (목록 화면용)"""
+    out = []
+    for t in TICKERS:
+        rs = store.candles(SOURCE, t, 2)
+        if not rs:
+            out.append({"ticker": t, "name": collect.NAMES.get(t, t), "ready": False})
+            continue
+        last = rs[-1]
+        out.append({"ticker": t, "name": last["name"], "ready": True, **_view(last)})
+    return out
+
+
+@app.get("/stocks/{ticker}/candles")
+def candles(ticker: str, limit: int = 120):
+    """그래프용 1시간 봉 (오래된 것 → 최신 순)"""
+    rs = store.candles(SOURCE, ticker.upper(), min(max(limit, 1), 500))
+    if not rs:
+        raise HTTPException(404, f"{ticker} 데이터가 없습니다 (TICKERS 확인 · /collect 실행)")
+    return {"ticker": ticker.upper(), "name": rs[-1]["name"], "mode": SOURCE,
+            "candles": [_view(r) for r in rs]}
+
+
+@app.get("/stocks/{ticker}/signals")
+def signals(ticker: str):
+    """골든크로스 · 데드크로스 · 급변동이 있었던 시각만"""
+    rs = store.candles(SOURCE, ticker.upper(), 500)
+    return [_view(r) for r in rs if r["signal"]][-30:]
+
+
+@app.get("/logs")
+def logs():
+    return store.logs()</pre>
+  <div class="file">collect.py</div>
+<pre>"""
+collect.py — ① 시세 받기  ② 가공(정리 + 지표 계산)
+
+yfinance로 종목별 '1시간 봉'(시가·고가·저가·종가·거래량)을 받아서
+pandas로 정리하고 등락률 · 이동평균 · 신호를 계산해 DB에 넣을 행으로 만든다.
+※ 교육용 예제입니다. yfinance 시세는 15~20분 늦을 수 있고, 투자 판단용이 아닙니다.
+"""
+import random
+from datetime import datetime, timedelta, timezone
+
+import pandas as pd
+
+KST = timezone(timedelta(hours=9))
+
+NAMES = {"005930.KS": "삼성전자", "000660.KS": "SK하이닉스", "035420.KS": "NAVER",
+         "035720.KS": "카카오", "005380.KS": "현대차"}
+
+
+<span class="c"># ─────────────────────────────────────────────</span>
+<span class="c"># ① 받기 — yfinance (키 필요 없음)</span>
+<span class="c"># ─────────────────────────────────────────────</span>
+def fetch_yf(ticker: str) -&gt; pd.DataFrame:
+    """최근 한 달치 1시간 봉. 매번 한 달치를 받아 덮어쓰면 이동평균이 항상 정확하다."""
+    import yfinance as yf
+    df = yf.Ticker(ticker).history(period="1mo", interval="1h")
+    if df.empty:
+        raise RuntimeError(f"{ticker}: 시세가 비어 있습니다 (종목코드·장 휴일 확인)")
+    return df
+
+
+<span class="c"># ─────────────────────────────────────────────</span>
+<span class="c"># ①' 연습용 가짜 시세 — yfinance가 막혀도 실습할 수 있게</span>
+<span class="c"># ─────────────────────────────────────────────</span>
+def fetch_demo(ticker: str) -&gt; pd.DataFrame:
+    rnd = random.Random(ticker)<span class="c">                      # 종목마다 늘 같은 흐름</span>
+    price = {"005930.KS": 70000, "000660.KS": 180000}.get(ticker, 50000) * 1.0
+    now = datetime.now(KST)
+    day = (now - timedelta(days=31)).replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = []
+    while day &lt;= now:
+        if day.weekday() &lt; 5:<span class="c">                        # 평일만 장이 열림</span>
+            for h in range(9, 16):<span class="c">                   # 09시 ~ 15시 봉</span>
+                ts = day.replace(hour=h)
+                if ts &gt; now:
+                    break
+                o = price
+                c = o * (1 + rnd.gauss(0.0003, 0.008))
+                hi = max(o, c) * (1 + abs(rnd.gauss(0, 0.003)))
+                lo = min(o, c) * (1 - abs(rnd.gauss(0, 0.003)))
+                vol = int(abs(rnd.gauss(1, 0.4)) * 500000)
+                rows.append({"Datetime": ts, "Open": o, "High": hi, "Low": lo, "Close": c, "Volume": vol})
+                price = c
+        day += timedelta(days=1)
+    df = pd.DataFrame(rows).set_index("Datetime")
+    <span class="c"># 진짜 데이터처럼 '덜 끝난 봉(거래량 0)'과 빈칸을 일부러 섞는다</span>
+    if len(df) &gt; 10:
+        df.iloc[-1, df.columns.get_loc("Volume")] = 0
+        df.iloc[len(df) // 2, df.columns.get_loc("Close")] = float("nan")
+    return df
+
+
+<span class="c"># ─────────────────────────────────────────────</span>
+<span class="c"># ② 가공 — 정리 + 지표</span>
+<span class="c"># ─────────────────────────────────────────────</span>
+def clean(df: pd.DataFrame, ticker: str, source: str, spike_pct: float = 1.5):
+    stats = {"fetched": len(df), "dropped": 0, "cleaned": 0}
+    df = df.copy()
+
+    <span class="c"># 1) 필요한 칸만, 이름은 소문자로</span>
+    df = df[["Open", "High", "Low", "Close", "Volume"]].rename(columns=str.lower)
+
+    <span class="c"># 2) 종가가 비었거나 0 이하인 봉은 버린다</span>
+    before = len(df)
+    df = df[df["close"].notna() &amp; (df["close"] &gt; 0)]
+    stats["dropped"] = before - len(df)
+
+    <span class="c"># 3) 원화는 소수점이 없다 → 정수로</span>
+    for col in ["open", "high", "low", "close"]:
+        df[col] = df[col].round().astype("int64")
+    df["volume"] = df["volume"].fillna(0).astype("int64")
+
+    <span class="c"># 4) 시각을 한국 시간으로 통일하고 순서대로</span>
+    idx = pd.to_datetime(df.index)
+    idx = idx.tz_localize(KST) if idx.tz is None else idx.tz_convert(KST)
+    df.index = idx
+    df = df.sort_index()
+
+    <span class="c"># 5) 지표: 직전 봉 대비 등락률, 5시간·20시간 이동평균</span>
+    df["change_pct"] = (df["close"].pct_change() * 100).round(2)
+    df["ma5"] = df["close"].rolling(5).mean().round(0)
+    df["ma20"] = df["close"].rolling(20).mean().round(0)
+
+    <span class="c"># 6) 신호: 이동평균이 엇갈린 순간 + 한 시간에 크게 움직인 순간</span>
+    above = df["ma5"] &gt; df["ma20"]
+    crossed = above.ne(above.shift()) &amp; df["ma20"].notna() &amp; df["ma20"].shift().notna()
+    df["signal"] = None
+    df.loc[crossed &amp; above, "signal"] = "골든크로스"
+    df.loc[crossed &amp; ~above, "signal"] = "데드크로스"
+    df.loc[df["signal"].isna() &amp; (df["change_pct"].abs() &gt;= spike_pct), "signal"] = "급변동"
+
+    <span class="c"># 7) DB 행으로. 아직 진행 중인 마지막 봉도 넣지만, 다음 수집 때 같은 시각으로 덮어써진다</span>
+    rows = []
+    for ts, r in df.iterrows():
+        rows.append({
+            "source": source, "ticker": ticker, "name": NAMES.get(ticker, ticker),
+            "ts": ts.isoformat(),
+            "open": int(r.open), "high": int(r.high), "low": int(r.low), "close": int(r.close),
+            "volume": int(r.volume),
+            "change_pct": None if pd.isna(r.change_pct) else float(r.change_pct),
+            "ma5": None if pd.isna(r.ma5) else float(r.ma5),
+            "ma20": None if pd.isna(r.ma20) else float(r.ma20),
+            "signal": r.signal if isinstance(r.signal, str) else None,
+        })
+    stats["cleaned"] = len(rows)
+    return rows, stats</pre>
+  <div class="file">db.py</div>
+<pre>"""
+db.py — ④ 저장: Supabase (변수가 없으면 서버 메모리에 임시 저장)
+"""
+import os
+from datetime import datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))
+
+
+def kst(ts: str) -&gt; str:
+    return datetime.fromisoformat(ts).astimezone(KST).strftime("%Y-%m-%d %H:%M")
+
+
+class SupabaseStore:
+    kind = "supabase"
+
+    def __init__(self, url, key):
+        from supabase import create_client
+        self.sb = create_client(url, key)
+
+    def save_candles(self, rows):
+        if not rows:
+            return 0
+        saved = 0
+        for i in range(0, len(rows), 500):<span class="c">           # 한 번에 너무 많이 보내지 않게 나눠서</span>
+            res = (self.sb.table("candles")
+                   .upsert(rows[i:i + 500], on_conflict="source,ticker,ts").execute())
+            saved += len(res.data or [])
+        return saved
+
+    def save_log(self, log):
+        self.sb.table("stock_logs").insert(log).execute()
+
+    def candles(self, source, ticker, limit=150):
+        res = (self.sb.table("candles").select("*").eq("source", source).eq("ticker", ticker)
+               .order("ts", desc=True).limit(limit).execute())
+        return list(reversed(res.data))
+
+    def logs(self, limit=20):
+        res = (self.sb.table("stock_logs").select("*")
+               .order("ran_at", desc=True).limit(limit).execute())
+        return res.data
+
+
+class MemoryStore:
+    kind = "memory(임시)"
+
+    def __init__(self):
+        self.rows, self._logs = {}, []
+
+    def save_candles(self, rows):
+        for r in rows:
+            self.rows[(r["source"], r["ticker"], r["ts"])] = r
+        return len(rows)
+
+    def save_log(self, log):
+        self._logs.append(log)
+
+    def candles(self, source, ticker, limit=150):
+        rs = [r for r in self.rows.values() if r["source"] == source and r["ticker"] == ticker]
+        return sorted(rs, key=lambda r: r["ts"])[-limit:]
+
+    def logs(self, limit=20):
+        return list(reversed(self._logs))[:limit]
+
+
+def get_store():
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_SECRET_KEY", "").strip()
+    return SupabaseStore(url, key) if url and key else MemoryStore()</pre>
+  <div class="file">requirements.txt</div>
+<pre class="short">fastapi
+uvicorn[standard]
+pandas
+yfinance
+supabase</pre>
+  <div class="file">.python-version</div>
+<pre class="short">3.12</pre>
+  <div class="file">railway.json</div>
+<pre class="short">{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "healthcheckPath": "/health",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}</pre>
+</section>
+
+</body>
+</html>

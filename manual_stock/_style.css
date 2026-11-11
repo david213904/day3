@@ -1,0 +1,37 @@
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; }
+  :root { --navy:#0a2242; --teal:#00a3a6; --ink:#1d2433; --mute:#5b6577; --line:#d9dee7; --code:#0f1726; --warn:#b4530f; --warnbg:#fff4e8; --okbg:#e9f8f7; }
+  * { box-sizing: border-box; }
+  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.55; margin: 0; background:#fff; }
+  h1 { color: var(--navy); font-size: 19pt; margin: 0 0 6px; padding-bottom: 6px; border-bottom: 3px solid var(--teal); page-break-after: avoid; }
+  h2 { color: var(--navy); font-size: 13pt; margin: 18px 0 6px; page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; color: var(--navy); page-break-after: avoid; }
+  p { margin: 5px 0; }
+  .chap { page-break-before: always; }
+  .num { display:inline-block; background: var(--teal); color:#fff; border-radius: 4px; padding: 0 7px; margin-right: 6px; font-size: 10pt; }
+  pre { background: var(--code); color: #e6edf6; font-family: Consolas, "D2Coding", monospace; font-size: 8.9pt; line-height: 1.45; padding: 9px 11px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; margin: 6px 0 9px; }
+  pre.short { page-break-inside: avoid; }
+  pre .c { color: #7f8ea8; }
+  code { font-family: Consolas, monospace; background: #eef1f6; padding: 0 4px; border-radius: 3px; font-size: 9.3pt; }
+  pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+  .file { font-family: Consolas, monospace; font-size: 8.6pt; color: #fff; background: var(--navy); display: inline-block; padding: 1px 9px; border-radius: 5px 5px 0 0; margin-top: 6px; page-break-after: avoid; break-after: avoid; }
+  .file + pre { margin-top: 0; border-top-left-radius: 0; }
+  .box { border-radius: 6px; padding: 8px 12px; margin: 8px 0; page-break-inside: avoid; }
+  .warn { background: var(--warnbg); border-left: 4px solid var(--warn); }
+  .warn b:first-child { color: var(--warn); }
+  .ok { background: var(--okbg); border-left: 4px solid var(--teal); }
+  table { width: 99.5%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9.2pt; page-break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 4px 7px; vertical-align: top; text-align: left; }
+  th { background: #f0f3f8; color: var(--navy); }
+  ol, ul { margin: 4px 0 6px; padding-left: 22px; }
+  li { margin: 2px 0; }
+  .check li { list-style: none; margin-left: -18px; }
+  .check li::before { content: "☐ "; color: var(--teal); font-weight: bold; }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover .tag { color: var(--teal); font-weight: bold; letter-spacing: 2px; font-size: 10pt; }
+  .cover h1 { font-size: 28pt; border: none; line-height: 1.25; }
+  .cover .sub { font-size: 12pt; color: var(--mute); margin-top: 10px; }
+  .cover .meta { margin-top: 40px; font-size: 9.5pt; color: var(--mute); border-top: 1px solid var(--line); padding-top: 10px; }
+  .toc { font-size: 10.5pt; }
+  .toc li { margin: 4px 0; }
+  .mute { color: var(--mute); font-size: 9pt; }
+  svg text { font-family: "Malgun Gothic", sans-serif; }
